@@ -27,7 +27,7 @@ from data.storage import RateStorage
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MAX_WORKERS = 16
+DEFAULT_MAX_WORKERS = 6
 DEFAULT_TIME_BUDGET_SECONDS = 60
 
 
