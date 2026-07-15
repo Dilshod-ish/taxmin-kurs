@@ -1,4 +1,17 @@
-"""O'zbekiston Respublikasi Markaziy banki (CBU) valyuta kurslari API mijozi."""
+"""O'zbekiston Respublikasi Markaziy banki (CBU) valyuta kurslari API mijozi.
+
+Haqiqiy so'rov mexanizmi cbu.uz arxiv sahifasining o'zi (brauzer DevTools
+Network paneli orqali) tekshirib aniqlangan:
+
+- Manzil har doim bitta: https://cbu.uz/common/json/
+- GET so'rov — joriy (bugungi) kursni qaytaradi.
+- POST so'rov, "date" maydoni bilan (DD/MM/YYYY formatida, masalan
+  "03/07/2026") — o'sha tarixiy sana uchun kursni qaytaradi.
+
+(Eslatma: dastlab boshqa, hujjatlashtirilmagan "/arkhiv-kursov-valyut/
+json/all/{sana}/" manzili ishlatilgan edi — u har doim joriy sanani
+qaytarardi, sanani e'tiborsiz qoldirardi, shuning uchun almashtirildi.)
+"""
 
 from __future__ import annotations
 
@@ -12,9 +25,9 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-CBU_DATE_FORMAT = "%d.%m.%Y"
+REQUEST_DATE_FORMAT = "%d/%m/%Y"
+RESPONSE_DATE_FORMAT = "%d.%m.%Y"
 DEFAULT_BASE_URL = "https://cbu.uz"
-DEFAULT_LANG = "uz"
 REQUEST_TIMEOUT = 8
 MAX_RETRIES = 2
 RETRY_BACKOFF_SECONDS = 1
@@ -33,24 +46,21 @@ class ExchangeRate:
 
 
 class CbuClient:
-    """cbu.uz saytining rasmiy JSON arxiv API'siga so'rov yuboruvchi mijoz."""
+    """cbu.uz saytining common/json/ endpointiga so'rov yuboruvchi mijoz."""
 
-    def __init__(
-        self,
-        base_url: str = DEFAULT_BASE_URL,
-        lang: str = DEFAULT_LANG,
-        session: Optional[requests.Session] = None,
-    ):
+    def __init__(self, base_url: str = DEFAULT_BASE_URL, session: Optional[requests.Session] = None):
         self.base_url = base_url.rstrip("/")
-        self.lang = lang
         self.session = session or requests.Session()
 
-    def _get(self, path: str) -> list:
-        url = f"{self.base_url}/{self.lang}/arkhiv-kursov-valyut/json/{path}"
+    def _request(self, *, post_data: Optional[dict] = None) -> list:
+        url = f"{self.base_url}/common/json/"
         last_error: Optional[Exception] = None
         for attempt in range(1, MAX_RETRIES + 1):
             try:
-                response = self.session.get(url, timeout=REQUEST_TIMEOUT)
+                if post_data is not None:
+                    response = self.session.post(url, data=post_data, timeout=REQUEST_TIMEOUT)
+                else:
+                    response = self.session.get(url, timeout=REQUEST_TIMEOUT)
                 response.raise_for_status()
                 payload = response.json()
                 if not isinstance(payload, list):
@@ -68,11 +78,11 @@ class CbuClient:
     @staticmethod
     def _parse_entry(entry: dict, override_date: Optional[date] = None) -> ExchangeRate:
         """`override_date` berilsa, natijaga shu sana yopishtiriladi (CBU javobidagi
-        "Date" maydoniga emas) — chunki CBU arxiv endpointi ba'zan so'ralgan tarixiy
-        sana o'rniga joriy sanani qaytaradi, bu esa turli kunlar bir xil sanaga
-        yozilib, bir-birini ustidan bosib qo'yishiga olib kelardi."""
+        "Date" maydoniga emas) — ehtiyot chorasi sifatida, agar server sanani
+        kutilganidek qaytarmasa ham, ma'lumot to'g'ri kunga yozilishini
+        kafolatlash uchun."""
         try:
-            response_date = datetime.strptime(entry["Date"], CBU_DATE_FORMAT).date()
+            response_date = datetime.strptime(entry["Date"], RESPONSE_DATE_FORMAT).date()
             rate_date = override_date if override_date is not None else response_date
             if override_date is not None and response_date != override_date:
                 logger.warning(
@@ -92,19 +102,10 @@ class CbuClient:
 
     def get_current_rates(self) -> list[ExchangeRate]:
         """Barcha valyutalarning bugungi kursini qaytaradi."""
-        payload = self._get("")
+        payload = self._request()
         return [self._parse_entry(e) for e in payload]
 
     def get_rates_for_date(self, target_date: date) -> list[ExchangeRate]:
         """Berilgan sana uchun barcha valyutalar kursini qaytaradi."""
-        path = f"all/{target_date.strftime(CBU_DATE_FORMAT)}/"
-        payload = self._get(path)
+        payload = self._request(post_data={"date": target_date.strftime(REQUEST_DATE_FORMAT)})
         return [self._parse_entry(e, override_date=target_date) for e in payload]
-
-    def get_rate_for_date(self, currency: str, target_date: date) -> Optional[ExchangeRate]:
-        """Berilgan sana uchun bitta valyuta kursini qaytaradi (mavjud bo'lmasa None)."""
-        path = f"{currency}/{target_date.strftime(CBU_DATE_FORMAT)}/"
-        payload = self._get(path)
-        if not payload:
-            return None
-        return self._parse_entry(payload[0], override_date=target_date)
