@@ -27,6 +27,7 @@ class Settings:
     daily_update_hour: int = int(os.getenv("DAILY_UPDATE_HOUR", "9"))
     daily_update_minute: int = int(os.getenv("DAILY_UPDATE_MINUTE", "5"))
     max_forecast_days: int = int(os.getenv("MAX_FORECAST_DAYS", "30"))
+    auto_bootstrap: bool = os.getenv("AUTO_BOOTSTRAP", "true").lower() == "true"
 
 
 settings = Settings()
