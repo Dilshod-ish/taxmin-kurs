@@ -66,9 +66,21 @@ class CbuClient:
         raise CbuApiError(f"CBU API'dan ma'lumot olib bo'lmadi: {url}") from last_error
 
     @staticmethod
-    def _parse_entry(entry: dict) -> ExchangeRate:
+    def _parse_entry(entry: dict, override_date: Optional[date] = None) -> ExchangeRate:
+        """`override_date` berilsa, natijaga shu sana yopishtiriladi (CBU javobidagi
+        "Date" maydoniga emas) — chunki CBU arxiv endpointi ba'zan so'ralgan tarixiy
+        sana o'rniga joriy sanani qaytaradi, bu esa turli kunlar bir xil sanaga
+        yozilib, bir-birini ustidan bosib qo'yishiga olib kelardi."""
         try:
-            rate_date = datetime.strptime(entry["Date"], CBU_DATE_FORMAT).date()
+            response_date = datetime.strptime(entry["Date"], CBU_DATE_FORMAT).date()
+            rate_date = override_date if override_date is not None else response_date
+            if override_date is not None and response_date != override_date:
+                logger.warning(
+                    "CBU javobidagi sana (%s) so'ralgan sanadan (%s) farq qiladi — "
+                    "so'ralgan sana ishlatiladi",
+                    response_date,
+                    override_date,
+                )
             return ExchangeRate(
                 currency=entry["Ccy"],
                 rate=float(entry["Rate"]),
@@ -87,7 +99,7 @@ class CbuClient:
         """Berilgan sana uchun barcha valyutalar kursini qaytaradi."""
         path = f"all/{target_date.strftime(CBU_DATE_FORMAT)}/"
         payload = self._get(path)
-        return [self._parse_entry(e) for e in payload]
+        return [self._parse_entry(e, override_date=target_date) for e in payload]
 
     def get_rate_for_date(self, currency: str, target_date: date) -> Optional[ExchangeRate]:
         """Berilgan sana uchun bitta valyuta kursini qaytaradi (mavjud bo'lmasa None)."""
@@ -95,4 +107,4 @@ class CbuClient:
         payload = self._get(path)
         if not payload:
             return None
-        return self._parse_entry(payload[0])
+        return self._parse_entry(payload[0], override_date=target_date)
