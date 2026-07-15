@@ -1,10 +1,9 @@
-"""Tarixiy kurs va bashorat grafigini PNG rasm sifatida chizuvchi modul."""
+"""So'nggi kunlar tarixi va bashoratni bitta rasmda chizuvchi modul."""
 
 from __future__ import annotations
 
 import io
 from datetime import date
-from typing import Optional
 
 import matplotlib
 
@@ -15,32 +14,59 @@ import matplotlib.pyplot as plt
 
 from forecasting.model import ForecastResult
 
+HIST_COLOR = "#1f4e79"
+FORECAST_COLOR = "#c0392b"
 
-def render_chart(
+
+def _fmt(value: float) -> str:
+    return f"{value:,.0f}".replace(",", " ")
+
+
+def render_combined_chart(
     currency: str,
     history: list[tuple[str, float]],
-    forecast: Optional[ForecastResult] = None,
-    history_days: int = 90,
+    forecast: ForecastResult,
 ) -> io.BytesIO:
-    hist_dates = [date.fromisoformat(d) for d, _ in history][-history_days:]
-    hist_values = [v for _, v in history][-history_days:]
+    """`history` — oxirgi N kunlik (sana, kurs) ro'yxati, `forecast` — kelgusi
+    kunlar uchun bashorat. Ikkalasi bitta uzluksiz chiziqda ko'rsatiladi."""
+    hist_dates = [date.fromisoformat(d) for d, _ in history]
+    hist_values = [v for _, v in history]
 
-    fig, ax = plt.subplots(figsize=(9, 5), dpi=150)
-    ax.plot(hist_dates, hist_values, label="Tarixiy kurs", color="#1f4e79", linewidth=1.6)
+    fc_dates = [p.day for p in forecast.points]
+    fc_values = [p.value for p in forecast.points]
+    fc_lower = [p.lower for p in forecast.points]
+    fc_upper = [p.upper for p in forecast.points]
 
-    if forecast and forecast.points:
-        fc_dates = [p.day for p in forecast.points]
-        fc_values = [p.value for p in forecast.points]
-        fc_lower = [p.lower for p in forecast.points]
-        fc_upper = [p.upper for p in forecast.points]
-        ax.plot(fc_dates, fc_values, label="Bashorat", color="#c0392b", linestyle="--", linewidth=1.8)
-        ax.fill_between(fc_dates, fc_lower, fc_upper, color="#c0392b", alpha=0.15, label="Ishonch oralig'i")
+    fig, ax = plt.subplots(figsize=(10, 5.5), dpi=150)
 
-    ax.set_title(f"{currency}/UZS kursi va bashorati")
+    ax.plot(
+        hist_dates, hist_values, "o-", color=HIST_COLOR, linewidth=2, markersize=5,
+        label="So'nggi kunlar (haqiqiy)",
+    )
+    if hist_dates and fc_dates:
+        ax.plot(
+            [hist_dates[-1], fc_dates[0]], [hist_values[-1], fc_values[0]], "--",
+            color=FORECAST_COLOR, linewidth=1.3, alpha=0.6,
+        )
+    ax.plot(
+        fc_dates, fc_values, "o--", color=FORECAST_COLOR, linewidth=2, markersize=5,
+        label="Bashorat",
+    )
+    ax.fill_between(fc_dates, fc_lower, fc_upper, color=FORECAST_COLOR, alpha=0.12, label="Ishonch oralig'i")
+
+    if hist_dates:
+        ax.axvline(hist_dates[-1], color="#8a8a8a", linestyle=":", linewidth=1.2, label="Bugun")
+
+    for d, v in zip(hist_dates, hist_values):
+        ax.annotate(_fmt(v), (d, v), textcoords="offset points", xytext=(0, 10), ha="center", fontsize=8, color=HIST_COLOR)
+    for d, v in zip(fc_dates, fc_values):
+        ax.annotate(_fmt(v), (d, v), textcoords="offset points", xytext=(0, 10), ha="center", fontsize=8, color=FORECAST_COLOR)
+
+    ax.set_title(f"{currency}/UZS — so'nggi {len(hist_dates)} kun va keyingi {len(fc_dates)} kun bashorati")
     ax.set_ylabel("so'm")
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%d.%m.%y"))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%d.%m"))
     fig.autofmt_xdate()
-    ax.legend(loc="upper left")
+    ax.legend(loc="upper left", fontsize=8)
     ax.grid(alpha=0.3)
 
     buffer = io.BytesIO()

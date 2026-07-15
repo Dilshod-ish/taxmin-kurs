@@ -22,12 +22,7 @@ class Settings:
         default_factory=lambda: _split_currencies(os.getenv("CURRENCIES", "USD,EUR,RUB"))
     )
     cbu_base_url: str = os.getenv("CBU_BASE_URL", "https://cbu.uz")
-    history_years: int = int(os.getenv("HISTORY_YEARS", "5"))
-    timezone: str = os.getenv("TIMEZONE", "Asia/Tashkent")
-    daily_update_hour: int = int(os.getenv("DAILY_UPDATE_HOUR", "9"))
-    daily_update_minute: int = int(os.getenv("DAILY_UPDATE_MINUTE", "5"))
-    max_forecast_days: int = int(os.getenv("MAX_FORECAST_DAYS", "30"))
-    auto_bootstrap: bool = os.getenv("AUTO_BOOTSTRAP", "true").lower() == "true"
+    history_window_days: int = int(os.getenv("HISTORY_WINDOW_DAYS", "400"))
 
 
 settings = Settings()

@@ -1,27 +1,30 @@
 # Taxmin Kurs — O'zbek so'miga nisbatan valyuta kursi bashoratchi Telegram bot
 
-Bu bot O'zbekiston Respublikasi Markaziy banki (CBU) rasmiy JSON arxividan
-so'nggi 5 yillik tarixiy kurslarni yig'ib, shu ma'lumotlar asosida USD, EUR
-va RUB valyutalarining UZS'ga nisbatan kelgusi kunlardagi kursini bashorat
-qiladi.
+Botga valyuta nomini yozing — **USD**, **EUR** yoki **RUB** — bot sizga
+**oxirgi 7 kunlik haqiqiy kurs** va **keyingi 7 kunlik bashoratni** bitta
+rasmda qaytaradi. Alohida "ma'lumot yuklash" yoki "modelni o'qitish"
+bosqichlarini qo'lda bajarish shart emas — bot buni so'rov kelganda o'zi
+amalga oshiradi.
 
 ## Qanday ishlaydi
 
-1. **Ma'lumot yig'ish** (`data/fetch_history.py`) — CBU arxividan kunma-kun
-   so'nggi N yillik (standart 5 yil) kurslarni yuklab, `db/rates.sqlite3`
-   SQLite bazasiga saqlaydi. Skript resumable — allaqachon yuklangan kunlar
-   qayta so'ralmaydi.
-2. **Model o'qitish** (`forecasting/train.py`) — har bir valyuta uchun
+Foydalanuvchi valyuta nomini yozganda (`bot/handlers/forecast_chart.py`):
+
+1. **Ma'lumotni tekshiradi** — SQLite bazasida (`db/rates.sqlite3`) shu
+   valyuta uchun yetarli tarix bor-yo'qligini tekshiradi.
+2. **Kerak bo'lsa yuklaydi** — yetishmayotgan kunlarni CBU (O'zbekiston
+   Markaziy banki) rasmiy JSON arxividan parallel so'rovlar bilan tez
+   yuklab oladi (`data/fetch_history.py`). Birinchi so'rovda bu bir necha
+   o'nlab soniya olishi mumkin, keyingi so'rovlarda deyarli oniy.
+3. **Modelni o'qitadi** — agar model hali bugun uchun o'qitilmagan bo'lsa,
    [Prophet](https://facebook.github.io/prophet/) vaqt qatori modelini
-   (trend + haftalik/yillik mavsumiylik) hamda zaxira sifatida oddiy
-   trend+hafta-kuni modelini o'qitadi, so'nggi 30 kunlik ma'lumotda
-   backtest qilib MAPE (o'rtacha foizli xatolik) hisoblaydi va eng aniq
-   modelni tanlab `models/` papkasiga saqlaydi. Agar `prophet` o'rnatilmagan
-   bo'lsa, bot baribir zaxira model bilan ishlayveradi.
-3. **Telegram bot** (`bot/main.py`) — foydalanuvchiga joriy kurs, kelgusi
-   kunlar bashorati va grafikni taqdim etadi hamda har kuni avtomatik
-   ravishda yangi kursni yuklab, modellarni qayta o'qitadi
-   (`bot/scheduler.py`).
+   (yoki `prophet` o'rnatilmagan bo'lsa, oddiy trend+mavsumiylik zaxira
+   modelini) o'qitadi, so'nggi 30 kunda backtest qilib aniqlikni (MAPE)
+   hisoblaydi (`forecasting/model.py`). Shu kunning keyingi so'rovlari
+   uchun qayta o'qitmaydi — natija keshlanadi.
+4. **Rasm chizadi va yuboradi** — oxirgi 7 kun (haqiqiy) va keyingi 7 kun
+   (bashorat, ishonch oralig'i bilan) bitta grafikda, har bir nuqtada aniq
+   raqam bilan (`charts/plot.py`).
 
 ## O'rnatish
 
@@ -36,49 +39,50 @@ cp .env.example .env
 ```
 
 > **Eslatma:** `prophet` paketini o'rnatish bir necha daqiqa vaqt olishi
-> mumkin (u ichida Stan modelini kompilyatsiya qiladi). Agar u ishlamasa,
-> uni `requirements.txt` dan olib tashlashingiz mumkin — bot avtomatik
-> ravishda zaxira modelga o'tadi.
+> mumkin. Agar u ishlamasa, `requirements.txt`dan olib tashlashingiz
+> mumkin — bot avtomatik ravishda zaxira modelga o'tadi.
 
 ## Ishga tushirish
 
 ```bash
-# 1) So'nggi 5 yillik tarixni yuklab olish (bir martalik, biroz vaqt oladi)
-python -m data.fetch_history --years 5 --currencies USD,EUR,RUB
-
-# 2) Bashorat modellarini o'qitish
-python -m forecasting.train
-
-# 3) Botni ishga tushirish
 python -m bot.main
 ```
 
-Bot ishga tushgach, har kuni `.env` faylidagi `DAILY_UPDATE_HOUR` /
-`DAILY_UPDATE_MINUTE` da (standart 09:05, `Asia/Tashkent`) avtomatik
-ravishda yangi kursni yuklab, modellarni qayta o'qitadi — qo'lda qayta
-ishga tushirish shart emas.
+Shu bilan tamom — Telegram'da botga `/start` yozing, keyin `USD`, `EUR`
+yoki `RUB` deb yozing. Bot birinchi so'rovda ma'lumotni yig'ib, tahlil
+qilib, rasm shaklida javob beradi.
 
-## Bot buyruqlari
+## Bot bilan muloqot
 
-| Buyruq | Tavsif |
+| Xabar | Natija |
 |---|---|
-| `/start` | Botni ishga tushirish, qisqacha tanishtirish |
-| `/yordam` | Barcha buyruqlar bo'yicha yordam |
-| `/kurs [USD\|EUR\|RUB]` | Joriy kursni ko'rsatadi |
-| `/bashorat [valyuta] [kunlar]` | Kelgusi kunlar uchun bashorat (standart 7 kun, maksimal 30) va MAPE ko'rinishidagi taxminiy xatolik |
-| `/grafik [valyuta]` | So'nggi 90 kunlik tarix + 14 kunlik bashorat grafigini rasm sifatida yuboradi |
+| `/start` | Botni tanishtirish, valyuta tugmalari |
+| `/yordam` | Qisqacha yo'riqnoma |
+| `USD` (yoki `EUR`, `RUB`) | So'nggi 7 kun + keyingi 7 kunlik bashorat, bitta rasmda |
 
-Valyuta ko'rsatilmasa, bot inline tugmalar orqali tanlashni so'raydi.
+Valyutani tugma orqali ham tanlash mumkin (`/start` bosilganda chiqadigan
+klaviatura orqali).
 
 ## Loyiha tuzilishi
 
 ```
-bot/                Telegram bot (aiogram 3): handlerlar, klaviatura, scheduler
-data/                CBU API mijozi, SQLite ombori, tarix yuklovchi skript
-forecasting/         Prophet + zaxira model, o'qitish va bashorat logikasi
-charts/              Tarix/bashorat grafigini chizuvchi modul (matplotlib)
-tests/               CBU mijozi va SQLite ombori uchun avtomatik testlar
+bot/                 Telegram bot (aiogram 3): handlerlar, klaviatura
+data/                CBU API mijozi, SQLite ombori, tarixni tezkor yuklash
+forecasting/         Prophet + zaxira model, on-demand o'qitish va bashorat
+charts/              Oxirgi 7 kun + keyingi 7 kunni bitta rasmda chizish
+tests/                CBU mijozi va SQLite ombori uchun avtomatik testlar
 ```
+
+## Sozlamalar (`.env`)
+
+| O'zgaruvchi | Vazifasi | Standart |
+|---|---|---|
+| `BOT_TOKEN` | Telegram bot tokeni | — (majburiy) |
+| `CURRENCIES` | Qo'llab-quvvatlanadigan valyutalar | `USD,EUR,RUB` |
+| `HISTORY_WINDOW_DAYS` | Model uchun ishlatiladigan tarix uzunligi (kunlarda) | `400` |
+| `DB_PATH` | SQLite fayli manzili | `db/rates.sqlite3` |
+| `MODELS_DIR` | O'qitilgan modellar saqlanadigan papka | `models` |
+| `CBU_BASE_URL` | CBU API manzili | `https://cbu.uz` |
 
 ## Testlarni ishga tushirish
 
@@ -88,9 +92,8 @@ python -m unittest discover -s tests -v
 
 `tests/` papkasidagi testlar faqat standart kutubxona va `requests`
 paketiga tayanadi (CBU API mijozi va SQLite ombori). Bashorat/grafik
-modullari `pandas`, `numpy`, `prophet`, `matplotlib`, `aiogram` kabi
-paketlarni talab qiladi — ularni sinash uchun avval
-`pip install -r requirements.txt` bajarilishi kerak.
+modullarini sinash uchun avval `pip install -r requirements.txt`
+bajarilishi kerak.
 
 ## Muhim eslatma
 

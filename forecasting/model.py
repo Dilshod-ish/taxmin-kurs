@@ -1,11 +1,11 @@
 """Valyuta kursi bashorati: Prophet vaqt qatori modeli + zaxira (fallback) model.
 
-Har bir valyuta uchun ikkita nomzod model o'qitiladi (mavjud bo'lsa Prophet va
-har doim mavjud bo'lgan oddiy trend+hafta kuni modeli), so'nggi 30 kunlik
-"holdout" ma'lumotda tekshiriladi (backtest) va eng past MAPE (o'rtacha
-foizli xatolik) ko'rsatgan model tanlanadi hamda diskka saqlanadi. Shu
-tariqa har bir bashorat qanchalik ishonchli ekani (MAPE) foydalanuvchiga
-ham ko'rsatiladi.
+Alohida "train" bosqichi yo'q — `forecast_next_days()` chaqirilganda, agar shu
+kun uchun model hali o'qitilmagan bo'lsa, mavjud tarixiy ma'lumot asosida
+o'zi o'qitadi (Prophet va oddiy trend+hafta-kuni modeli orasidan so'nggi
+30 kunlik backtest'da eng past MAPE ko'rsatganini tanlaydi) va natijani bir
+kunlik kesh sifatida saqlaydi — shu kun ichidagi keyingi so'rovlar uchun
+qayta o'qitmaydi.
 """
 
 from __future__ import annotations
@@ -16,7 +16,6 @@ import pickle
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -160,14 +159,13 @@ def _save_model(
     )
 
 
-def train_model(currency: str, history: list[tuple[str, float]], models_dir: str) -> ForecastResult:
-    """Berilgan valyuta uchun eng yaxshi modelni tanlab o'qitadi va saqlaydi."""
+def _train_and_save(currency: str, history: list[tuple[str, float]], models_dir: str) -> None:
     df = _history_to_frame(history)
     if len(df) < MIN_TRAINING_ROWS:
         raise ValueError(
             f"{currency} uchun yetarli tarixiy ma'lumot yo'q "
             f"(kamida {MIN_TRAINING_ROWS} kun kerak, {len(df)} kun mavjud). "
-            "Avval 'python -m data.fetch_history' ni ishga tushiring."
+            "Birozdan so'ng qayta urinib ko'ring."
         )
 
     holdout = min(HOLDOUT_DAYS, max(len(df) // 5, 1))
@@ -194,31 +192,14 @@ def train_model(currency: str, history: list[tuple[str, float]], models_dir: str
     scored.sort(key=lambda item: item[0])
     best_mape, best_name = scored[0]
 
-    if best_name == "prophet":
-        final_model: object = _fit_prophet(df)
-    else:
-        final_model = SeasonalTrendModel().fit(df)
+    final_model: object = _fit_prophet(df) if best_name == "prophet" else SeasonalTrendModel().fit(df)
 
     last_history_date = df["ds"].max()
     _save_model(currency, best_name, final_model, models_dir, best_mape, last_history_date)
 
-    return ForecastResult(
-        currency=currency,
-        model_name=best_name,
-        mape=round(best_mape, 2),
-        trained_at=datetime.utcnow().isoformat(),
-    )
 
-
-def load_and_forecast(currency: str, days: int, models_dir: str) -> ForecastResult:
-    """Oldindan o'qitilgan modelni yuklab, kelgusi `days` kun uchun bashorat qiladi."""
+def _load_and_forecast(currency: str, days: int, models_dir: str) -> ForecastResult:
     model_path, meta_path = _model_paths(currency, models_dir)
-    if not model_path.exists() or not meta_path.exists():
-        raise FileNotFoundError(
-            f"{currency} uchun o'qitilgan model topilmadi. "
-            "Avval 'python -m forecasting.train' ni ishga tushiring."
-        )
-
     with open(model_path, "rb") as fh:
         payload = pickle.load(fh)
     meta = json.loads(meta_path.read_text())
@@ -228,10 +209,7 @@ def load_and_forecast(currency: str, days: int, models_dir: str) -> ForecastResu
 
     kind = payload["kind"]
     model = payload["model"]
-    if kind == "prophet":
-        forecast_df = _predict_prophet(model, future_dates)
-    else:
-        forecast_df = model.predict(future_dates)
+    forecast_df = _predict_prophet(model, future_dates) if kind == "prophet" else model.predict(future_dates)
 
     points = [
         ForecastPoint(
@@ -250,3 +228,22 @@ def load_and_forecast(currency: str, days: int, models_dir: str) -> ForecastResu
         trained_at=meta["trained_at"],
         points=points,
     )
+
+
+def forecast_next_days(currency: str, history: list[tuple[str, float]], days: int, models_dir: str) -> ForecastResult:
+    """Kerak bo'lsa (model hali yo'q yoki bugun o'qitilmagan bo'lsa) modelni
+    qayta o'qitib, kelgusi `days` kun uchun bashorat qaytaradi."""
+    model_path, meta_path = _model_paths(currency, models_dir)
+
+    needs_training = True
+    if model_path.exists() and meta_path.exists():
+        meta = json.loads(meta_path.read_text())
+        trained_at = datetime.fromisoformat(meta["trained_at"]).date()
+        last_history_date = date.fromisoformat(meta["last_history_date"])
+        latest_available = date.fromisoformat(history[-1][0]) if history else None
+        needs_training = trained_at < date.today() or last_history_date != latest_available
+
+    if needs_training:
+        _train_and_save(currency, history, models_dir)
+
+    return _load_and_forecast(currency, days, models_dir)

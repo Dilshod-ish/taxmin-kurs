@@ -2,33 +2,35 @@ from aiogram import Router
 from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
 
+from bot.config import settings
+from bot.keyboards import currency_keyboard
+
 router = Router(name="start")
 
 WELCOME_TEXT = (
     "Assalomu alaykum! \U0001F44B\n\n"
     "Men O'zbekiston Markaziy banki ma'lumotlari asosida ishlaydigan "
     "valyuta kursi bashoratchi botiman.\n\n"
-    "Buyruqlar:\n"
-    "/kurs — joriy kurslarni ko'rish\n"
-    "/bashorat USD 7 — 7 kunlik bashorat\n"
-    "/grafik USD — tarix va bashorat grafigi\n"
-    "/yordam — yordam"
+    "Menga shunchaki valyuta nomini yozing — USD, EUR yoki RUB — "
+    "men sizga oxirgi 7 kunlik kurs va keyingi 7 kunlik bashoratni "
+    "bitta rasmda yuboraman."
 )
 
 HELP_TEXT = (
-    "\U0001F4CC Buyruqlar ro'yxati:\n\n"
-    "/kurs [valyuta] — joriy kursni ko'rsatadi. Masalan: /kurs USD\n"
-    "/bashorat [valyuta] [kunlar] — kelgusi kunlar uchun kurs bashorati. "
-    "Masalan: /bashorat EUR 14 (standart: 7 kun, maksimal 30 kun)\n"
-    "/grafik [valyuta] — so'nggi 90 kunlik tarix va bashorat grafigini yuboradi\n\n"
-    "Bashorat so'nggi 5 yillik tarixiy ma'lumotlar asosida Prophet vaqt qatori "
-    "modeli yordamida hisoblanadi va har doim taxminiy xatolik (MAPE) ko'rsatiladi."
+    "\U0001F4CC Qanday ishlataman:\n\n"
+    "Menga shunchaki quyidagi so'zlardan birini yozing:\n"
+    f"{', '.join(settings.currencies)}\n\n"
+    "Men CBU (Markaziy bank) arxividan ma'lumotni tekshirib, kerak bo'lsa "
+    "yuklab olaman, bashorat modelini o'qitaman va oxirgi 7 kun + keyingi "
+    "7 kunlik bashoratni bitta rasmda qaytaraman.\n\n"
+    "Birinchi so'rov biroz vaqt olishi mumkin (ma'lumot yig'ilayotgani "
+    "uchun), keyingi so'rovlar tezroq javob beradi."
 )
 
 
 @router.message(CommandStart())
 async def handle_start(message: Message) -> None:
-    await message.answer(WELCOME_TEXT)
+    await message.answer(WELCOME_TEXT, reply_markup=currency_keyboard("fx"))
 
 
 @router.message(Command("yordam"))
