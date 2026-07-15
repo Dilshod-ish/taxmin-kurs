@@ -37,12 +37,18 @@ async def _handle_currency(message: Message, currency: str) -> None:
     storage = RateStorage(settings.db_path)
     status = await message.answer(f"⏳ {currency}/UZS uchun ma'lumot tahlil qilinmoqda...")
 
+    before_count = len(storage.get_existing_dates(currency))
+    logger.info("DIAGNOSTIKA: %s uchun backfill'dan OLDIN %s kun mavjud", currency, before_count)
+
     try:
         await asyncio.to_thread(
             backfill, [currency], settings.history_window_days, settings.db_path, settings.cbu_base_url
         )
     except Exception:
         logger.exception("%s uchun ma'lumot yuklashda xatolik", currency)
+
+    after_count = len(storage.get_existing_dates(currency))
+    logger.info("DIAGNOSTIKA: %s uchun backfill'dan KEYIN %s kun mavjud", currency, after_count)
 
     history = storage.get_history(currency)
 
