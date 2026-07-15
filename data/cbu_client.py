@@ -15,9 +15,9 @@ logger = logging.getLogger(__name__)
 CBU_DATE_FORMAT = "%d.%m.%Y"
 DEFAULT_BASE_URL = "https://cbu.uz"
 DEFAULT_LANG = "uz"
-REQUEST_TIMEOUT = 15
-MAX_RETRIES = 3
-RETRY_BACKOFF_SECONDS = 2
+REQUEST_TIMEOUT = 8
+MAX_RETRIES = 2
+RETRY_BACKOFF_SECONDS = 1
 
 
 class CbuApiError(RuntimeError):
