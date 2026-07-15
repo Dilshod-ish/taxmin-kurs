@@ -11,9 +11,12 @@ import logging
 
 from aiogram import Bot, Dispatcher
 
+from bot.bootstrap import ensure_ready
 from bot.config import settings
 from bot.handlers import chart, forecast, rate, start
 from bot.scheduler import setup_scheduler
+
+logger = logging.getLogger(__name__)
 
 
 async def main() -> None:
@@ -25,6 +28,10 @@ async def main() -> None:
         raise RuntimeError(
             "BOT_TOKEN environment o'zgaruvchisi o'rnatilmagan. .env faylini tekshiring."
         )
+
+    if settings.auto_bootstrap:
+        logger.info("Boshlang'ich tayyorgarlik: tarix va modellar tekshirilmoqda...")
+        await asyncio.to_thread(ensure_ready)
 
     bot = Bot(token=settings.bot_token)
     dispatcher = Dispatcher()
