@@ -28,6 +28,16 @@ jobs:
       - name: Kutubxonalarni o'rnatish
         run: pip install -r requirements.txt
 
+      - name: Avvalgi ma'lumot va modellarni tiklash
+        uses: actions/cache@v4
+        with:
+          path: |
+            db
+            models
+          key: bot-data-${{ github.run_id }}
+          restore-keys: |
+            bot-data-
+
       - name: Botni ishga tushirish
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
