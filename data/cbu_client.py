@@ -45,12 +45,31 @@ class ExchangeRate:
     diff: float = 0.0
 
 
+REQUIRED_HEADERS = {
+    "X-Requested-With": "XMLHttpRequest",
+    "Accept": "*/*",
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+    ),
+}
+
+
 class CbuClient:
-    """cbu.uz saytining common/json/ endpointiga so'rov yuboruvchi mijoz."""
+    """cbu.uz saytining common/json/ endpointiga so'rov yuboruvchi mijoz.
+
+    `X-Requested-With: XMLHttpRequest` sarlavhasi majburiy — brauzer
+    DevTools orqali tekshirilganda, bu sarlavha bo'lmasa server so'ralgan
+    sanani e'tiborsiz qoldirib, doim joriy kursni qaytarishi aniqlandi
+    (Bitrix CMS'ning odatiy AJAX tekshiruvi bo'lsa kerak). `Referer` va
+    `Origin` esa sessiya boshlanishi bilan avtomatik o'rnatiladi."""
 
     def __init__(self, base_url: str = DEFAULT_BASE_URL, session: Optional[requests.Session] = None):
         self.base_url = base_url.rstrip("/")
         self.session = session or requests.Session()
+        self.session.headers.update(REQUIRED_HEADERS)
+        self.session.headers.setdefault("Referer", f"{self.base_url}/uz/arkhiv-kursov-valyut/")
+        self.session.headers.setdefault("Origin", self.base_url)
 
     def _request(self, *, post_data: Optional[dict] = None) -> list:
         url = f"{self.base_url}/common/json/"
