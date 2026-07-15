@@ -97,6 +97,6 @@ async def handle_legacy_prompt(message: Message) -> None:
 
 @router.callback_query(lambda c: c.data and c.data.startswith("fx:"))
 async def handle_currency_callback(callback: CallbackQuery) -> None:
+    await callback.answer()
     currency = callback.data.split(":")[1]
     await _handle_currency(callback.message, currency)
-    await callback.answer()
