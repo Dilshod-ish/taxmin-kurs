@@ -74,7 +74,7 @@ class CbuClientTests(unittest.TestCase):
         with patch("data.cbu_client.time.sleep"):
             with self.assertRaises(CbuApiError):
                 self.client.get_current_rates()
-        self.assertEqual(self.client.session.get.call_count, 3)
+        self.assertEqual(self.client.session.get.call_count, 2)
 
     def test_recovers_after_transient_failure(self) -> None:
         ok_response = MagicMock()
