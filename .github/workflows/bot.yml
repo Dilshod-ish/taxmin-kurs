@@ -38,7 +38,18 @@ jobs:
           git add db models
           if ! git diff --cached --quiet; then
             git commit -m "chore: kurs ma'lumotlarini yangilash"
-            git push origin HEAD:main
+            push_ok=false
+            for i in 1 2 3; do
+              if git push origin HEAD:main; then
+                push_ok=true
+                break
+              fi
+              echo "Push muvaffaqiyatsiz (urinish $i/3), 5 soniyadan keyin qayta urinaman..."
+              sleep 5
+            done
+            if [ "$push_ok" = false ]; then
+              echo "::warning::Ma'lumotni push qilib bo'lmadi, lekin bot joriy (lokal) ma'lumot bilan davom etadi."
+            fi
           else
             echo "Yangi ma'lumot yo'q, commit shart emas."
           fi
