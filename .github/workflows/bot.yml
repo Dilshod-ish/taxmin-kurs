@@ -30,12 +30,12 @@ jobs:
 
       - name: Ma'lumotni yangilash va reponing o'ziga saqlash
         run: |
-          python -m data.fetch_history --days 400 --time-budget 120
-          mkdir -p db models
-          touch db/.gitkeep models/.gitkeep
+          python -m data.fetch_history --days 730 --time-budget 180
+          mkdir -p db
+          touch db/.gitkeep
           git config user.name "taxmin-kurs-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add db models
+          git add db
           if ! git diff --cached --quiet; then
             git commit -m "chore: kurs ma'lumotlarini yangilash"
             push_ok=false
