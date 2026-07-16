@@ -17,12 +17,11 @@ def _split_currencies(raw: str) -> list[str]:
 class Settings:
     bot_token: str = os.getenv("BOT_TOKEN", "")
     db_path: str = os.getenv("DB_PATH", str(BASE_DIR / "db" / "rates.sqlite3"))
-    models_dir: str = os.getenv("MODELS_DIR", str(BASE_DIR / "models"))
     currencies: list[str] = field(
         default_factory=lambda: _split_currencies(os.getenv("CURRENCIES", "USD,EUR,RUB"))
     )
     cbu_base_url: str = os.getenv("CBU_BASE_URL", "https://cbu.uz")
-    history_window_days: int = int(os.getenv("HISTORY_WINDOW_DAYS", "400"))
+    history_window_days: int = int(os.getenv("HISTORY_WINDOW_DAYS", "730"))
 
 
 settings = Settings()
