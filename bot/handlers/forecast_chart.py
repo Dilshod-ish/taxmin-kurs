@@ -53,9 +53,7 @@ async def _handle_currency(message: Message, currency: str) -> None:
     history = storage.get_history(currency)
 
     try:
-        result = await asyncio.to_thread(
-            forecast_next_days, currency, history, FORECAST_DAYS, settings.models_dir
-        )
+        result = await asyncio.to_thread(forecast_next_days, currency, history, FORECAST_DAYS)
     except ValueError as exc:
         await status.edit_text(str(exc))
         return
