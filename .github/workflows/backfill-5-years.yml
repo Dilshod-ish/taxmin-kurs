@@ -1,0 +1,50 @@
+name: Bir martalik 5 yillik tarixni yuklash
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Kodni olish
+        uses: actions/checkout@v4
+
+      - name: Python o'rnatish
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Kutubxonalarni o'rnatish
+        run: pip install -r requirements.txt
+
+      - name: 5 yillik tarixni yuklab, reponing o'ziga saqlash
+        run: |
+          python -m data.fetch_history --years 5 --time-budget 1800
+          mkdir -p db
+          touch db/.gitkeep
+          git config user.name "taxmin-kurs-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add db
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: 5 yillik tarixiy ma'lumotni yuklash (bir martalik tahlil uchun)"
+            push_ok=false
+            for i in 1 2 3; do
+              if git push origin HEAD:main; then
+                push_ok=true
+                break
+              fi
+              echo "Push muvaffaqiyatsiz (urinish $i/3), 5 soniyadan keyin qayta urinaman..."
+              sleep 5
+            done
+            if [ "$push_ok" = false ]; then
+              echo "::error::Ma'lumotni push qilib bo'lmadi."
+              exit 1
+            fi
+          else
+            echo "Yangi ma'lumot yo'q."
+          fi
